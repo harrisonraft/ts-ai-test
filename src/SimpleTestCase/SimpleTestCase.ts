@@ -14,10 +14,21 @@ export class SimpleTestCase<TExpectedOutput> {
         this.validationResolver = new ValidationResolver();
     }
 
-    public async run() {
-        const promises = this.prompts.map((p) => {
+    public async run(): Promise<void> {
+        const promises = this.prompts.map((p, i) => {
             return this.executor(p.prompt).then((llmOutput) => {
-                return this.validateOutput(p, llmOutput);
+                const result = this.validateOutput(p, llmOutput);
+                console.log(`==== Result for prompt #${i} ====`);
+                if (result.isValid) {
+                    console.log(`With user prompt: ${JSON.stringify(p.prompt)}`);
+                    console.log(`Result score: ${result.score} / 100`);
+                } else {
+                    console.log(`%c With user prompt: ${p.prompt}`, "color: red; font-weight: bold;");
+                    console.log(`%c With LLM output: ${llmOutput}`, "color: red; font-weight: bold;");
+                    console.log(`%c Result score: ${result.score} / 100`, "color: red; font-weight: bold;");
+                }
+
+                return result;
             }).catch((e) => {
                 this.log(e);
                 return {

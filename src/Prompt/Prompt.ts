@@ -34,15 +34,17 @@ export class Prompt<TExpectedOutput> implements IPrompt<TExpectedOutput> {
                 // @ts-ignore-next-line
                 if (result === undefined) {
                     result = m(llmOutput);
+                } else {
+                    result = m(result);
                 }
-
-                result = m(result);
             } catch(e) {
                 throw new Error(`Mapper #${i+1} for user prompt: ${this.prompt.user} has errored: ${e}`)
             }
 
             i++;
         }
+
+        console.log("result from mapping model output: ", result);
 
         return result!;
     }
