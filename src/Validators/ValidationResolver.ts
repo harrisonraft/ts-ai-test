@@ -1,24 +1,34 @@
 import { ValidatorResult } from "./types/ValidatorResult";
+import { ArrayValidator } from "./ArrayValidator";
+import { ObjectLikenessScore } from "./utils/ObjectLikenessScore";
+import { isObject } from "./utils/IsObject";
 
 export class ValidationResolver {
-    public validate<T>(input: T, expectedOutput: T): ValidatorResult {
-        // do something based on type of input being: object, array, string, number, etc.
-        if (typeof input !== typeof expectedOutput) {
+    public validate<T>(realOutput: T, expectedOutput: T): ValidatorResult {
+        if (typeof realOutput !== typeof expectedOutput) {
             return {
                 score: 0,
                 isValid: false,
             };
         }
 
-        if (Array.isArray(input) && Array.isArray(expectedOutput)) {
-            // Handle array validation logic here
-            return this.validateArray(input, expectedOutput);
-        } else if (typeof input === "object" && typeof expectedOutput === "object") {
-            // Handle object validation logic here
-            return this.validateObject(input, expectedOutput);
+        if (Array.isArray(realOutput) && Array.isArray(expectedOutput)) {
+            return ArrayValidator(realOutput, expectedOutput);
+        } else if (isObject(realOutput) && isObject(expectedOutput)) {
+            const objectScore = ObjectLikenessScore(realOutput, expectedOutput)
+            return {
+                isValid: objectScore.score === 100,
+                score: objectScore.score
+            }
         } else {
-            // Handle primitive types (string, number, boolean)
-            return this.validatePrimitive(input, expectedOutput);
+            // primitive
+            return realOutput === expectedOutput ? {
+                isValid: true,
+                score: 100
+            } : {
+                isValid: false,
+                score: 0
+            };
         }
     }
 }

@@ -15,7 +15,7 @@ export const ArrayValidator = <T extends Array<any>>(input: T, expectedOutput: T
 
     const allItemsPrimitive = input.every(isPrimitive);
 
-    if (allItemsPrimitive) {
+    if (!allItemsPrimitive) {
         // TODO - want to support this?
         // ... handle non-primitive arrays if needed. We will do a switch based on type...
     }
