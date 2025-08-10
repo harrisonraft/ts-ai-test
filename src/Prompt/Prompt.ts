@@ -44,8 +44,6 @@ export class Prompt<TExpectedOutput> implements IPrompt<TExpectedOutput> {
             i++;
         }
 
-        console.log("result from mapping model output: ", result);
-
         return result!;
     }
 }
