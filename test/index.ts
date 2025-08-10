@@ -42,14 +42,14 @@ const MapToArray = (resp: { models: Array<PossibleExampleKeys> }): Array<Possibl
 
 // TODO - mapped types aint mapping for the mappers to map the models
 
-const classificationPromptForPersonalTutoringWorkbook = createSimplePromptFactory<InitialModelInput, ExpectedOutputType>(
+const pedagogicalModelClassificationPromptFactory = createSimplePromptFactory<InitialModelInput, ExpectedOutputType>(
     getPedagogicalModelString, // turns input into { user: "", system?: "" }
     [CommonJsonMapper<ExpectedOutputType>, MapToArray] as any // mapper which turns Prompt string output (could be LLM output too) into relevant ExpectedOutput. If this fails, testCase will pick it up
 );
 
 // PromptSet takes Prompt which is generic, works for all, a ComplexPromptFactory just wraps the Prompt and gives is all the stuff needed to work
 const classificationPrompts = [
-    classificationPromptForPersonalTutoringWorkbook(
+    pedagogicalModelClassificationPromptFactory(
         { title: "Personal Tutoring Workbook",
             description: "A workbook that provides first year students with the ability to reflect on and track their 3 personal tutoring sessions. Should also include somewhere to provide feedback & reflect on current (pre meeting) abilities relating to higher education soft skills, and end-of-year abilities (so we know who to target for tutoring in 2nd year)",
             subject: "All subject will use this workbook",
@@ -60,7 +60,7 @@ const classificationPrompts = [
         },
         [PossibleExampleKeys.PersonalTutoringSupport] as any
     ),
-    classificationPromptForPersonalTutoringWorkbook(
+    pedagogicalModelClassificationPromptFactory(
         { title: "Reflection only workbook",
             description: "Reflection only",
             subject: "Reflections",
