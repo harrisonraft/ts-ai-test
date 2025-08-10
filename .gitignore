@@ -1,4 +1,4 @@
-test
+test/*
+!test/index.ts
 node_modules
 .idea
-
