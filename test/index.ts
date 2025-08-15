@@ -2,11 +2,12 @@ import { OpenAI } from "openai"
 import { createSimplePromptFactory } from "../src/PromptFactories/CreateSimplePromptFactory";
 import { SimpleTestCase } from "../src/SimpleTestCase/SimpleTestCase";
 import { getPedagogicalModelString, InitialModelInput } from "./getPedagogicalModelString";
+import { SimpleScoringValidator } from "../src/Validators/SimpleScoringValidator";
+import { LLMValidator } from "../src/Validators/LLMValidator";
 
 const client = new OpenAI({
     apiKey: import.meta.env.VITE_OPEN_AI_KEY || "",
 });
-
 
 enum PossibleExampleKeys {
     Reflection = "Reflection",
@@ -71,10 +72,10 @@ const classificationPrompts = [
     ),
 ];
 
-const testCase = new SimpleTestCase(
-    "Selection of pedagogical model",
-    classificationPrompts,
-    ({ system, user }) => {
+const pedagogicalModelTest = new SimpleTestCase({
+    identifier: "Selection of pedagogical models",
+    prompts: classificationPrompts,
+    executor: ({ system, user }) => {
         return client.chat.completions.create({
             max_completion_tokens: 1000,
             response_format: {
@@ -93,8 +94,98 @@ const testCase = new SimpleTestCase(
             ]
         }).then((r) => r.choices[0].message.content as string);
     },
-    3,
-    75
-);
+    validator: new SimpleScoringValidator(),
+    validationRequirement: 75,
+    runs: 3
+});
 
-testCase.run();
+// pedagogicalModelTest.run();
+
+type fakeOutput = {
+    hello: string;
+    goodbye: string;
+}
+
+const fakeLLMObjectOutputPromptFactory = createSimplePromptFactory<null, fakeOutput>(
+    () => ({ system: `Please return a json object, regardless of user input, that looks like this: { hello: "world", goodbye: "my friend" }`, user: "Hi..." }),
+    [CommonJsonMapper<fakeOutput>]
+)
+
+const LLMValidationExecutor = (llmOutput: fakeOutput, realOutput: fakeOutput) => {
+    return client.responses.create({
+        model: "gpt-4.1",
+        max_output_tokens: 500,
+        text: {
+            format: {type: "json_object"}
+        },
+        input: [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": `Your purpose is to evaluate the output of an AI versus the expected output the consumer requires.
+                        This is being done to test the AI system, which is likely in use within a SaaS platform, and to understand how often it generates output that is expected.
+                        You will be provided an input object as the user message, and you must evaluate it against the following EXPECTED output:
+                        \r\n
+                        \`\`\`json
+                        ${JSON.stringify(realOutput)}
+                        \`\`\`
+                        \r\n
+                        
+                        Your return value must be a json object that has only a 'score' property as follows:
+                        \`\`\`json
+                        {
+                            score: number, 0-100 representing the degree to which the data you have received is similar to the expected data,
+                        }
+                        \`\`\`
+                        
+                        Your judgement should be based on similarity, this doesn't mean that the output must be EXACTLY the same, but that it should be similar in structure + content. If there are small differences, this is acceptable - no one can predict the outcome of an LLM.
+                        The user receiving these scores wants to understands how their AI system performs against a number of common test cases, to aid in tuning + testing of changes. Respond appropriately.
+                        `
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": JSON.stringify(llmOutput)
+                    }
+                ]
+            }
+        ],
+    }).then((response) => {
+        return JSON.parse(response.output_text);
+    });
+}
+
+const testingTheLLMCase = new SimpleTestCase({
+    identifier: "Testing the LLM case",
+    validator: new LLMValidator<fakeOutput>(LLMValidationExecutor),
+    prompts: [fakeLLMObjectOutputPromptFactory(null, { hello: "world", goodbye: "hello" })],
+    runs: 3,
+    validationRequirement: 80,
+    executor: ({ system, user }) => {
+        return client.chat.completions.create({
+            max_completion_tokens: 1000,
+            response_format: {
+                type: "json_object"
+            },
+            model: "gpt-4.1-mini",
+            messages: [
+                {
+                    role: "system",
+                    content: system as string
+                },
+                {
+                    role: "user",
+                    content: user
+                }
+            ]
+        }).then((r) => r.choices[0].message.content as string)
+    }
+})
+
+testingTheLLMCase.run();

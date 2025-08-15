@@ -1,7 +1,9 @@
 import { IPrompt } from "../Prompt/interfaces/IPrompt";
 import { PromptExecutor } from "../types/PromptExecutor";
-import { ValidationResolver } from "../Validators/ValidationResolver";
+import { SimpleScoringValidator } from "../Validators/SimpleScoringValidator";
 import { ValidatorResult } from "../Validators/types/ValidatorResult";
+import { IValidator } from "../Validators/interfaces/IValidator";
+import { SimpleTestCaseConfig } from "./types/SimpleTestCaseConfig";
 
 type Result<TExpectedOutput> = {
     prompt: IPrompt<TExpectedOutput>,
@@ -10,26 +12,26 @@ type Result<TExpectedOutput> = {
 } & ValidatorResult;
 
 export class SimpleTestCase<TExpectedOutput> {
-    private validationResolver: ValidationResolver;
+    private config: Required<SimpleTestCaseConfig<TExpectedOutput>>;
 
     constructor(
-        private identifier: string,
-        private prompts: Array<IPrompt<TExpectedOutput>>,
-        private executor: PromptExecutor,
-        private runs: number = 3,
-        private validationRequirement: number = 100
+        config: SimpleTestCaseConfig<TExpectedOutput>
     ) {
-        this.validationResolver = new ValidationResolver();
+        this.config = {
+            ...config,
+            runs: config.runs || 3,
+            validationRequirement: config.validationRequirement || 100
+        }
     }
 
     public async run(): Promise<void> {
         const runs: Array<Promise<Array<Result<TExpectedOutput>>>> = [];
 
-        for (let i = 0; i < this.runs; i++) {
-            runs.push(Promise.all(this.prompts.map((p, i) => {
-                return this.executor(p.prompt).then((llmOutput) => {
+        for (let i = 0; i < this.config.runs; i++) {
+            runs.push(Promise.all(this.config.prompts.map((p, i) => {
+                return this.config.executor(p.prompt).then(async(llmOutput) => {
                     const mappedOutput = p.mapToExpectedOutput(llmOutput);
-                    const validation = this.validationResolver.validate(mappedOutput, p.expectedOutput, this.validationRequirement);
+                    const validation = await this.config.validator.validate(mappedOutput, p.expectedOutput, this.config.validationRequirement);
 
                     return {
                         prompt: p,
@@ -38,7 +40,7 @@ export class SimpleTestCase<TExpectedOutput> {
                         ...validation
                     };
                 }).catch((e) => {
-                    this.log(e);
+                    console.error(e);
                     return {
                         prompt: p,
                         llmOutput: "",
@@ -52,19 +54,16 @@ export class SimpleTestCase<TExpectedOutput> {
         this.logRuns(await Promise.all(runs));
     }
 
-    private log(e: unknown) {
-        console.error(`${e}`);
-    }
-
+    // TODO - pull out
     private logRuns(runs: Array<Array<Result<TExpectedOutput>>>) {
         let i = 1;
         let c = 1;
 
         console.log(JSON.stringify(runs[0][0].score));
 
-        console.log(`========================================`);
-        console.log(`Results for Test Case: ${this.identifier}`);
-        console.log(`========================================`);
+        console.log(`=======================${"=".repeat(this.config.identifier.length)}`);
+        console.log(`Results for Test Case: ${this.config.identifier}`);
+        console.log(`=======================${"=".repeat(this.config.identifier.length)}`);
         console.log();
 
         for (const r of runs) {
@@ -97,10 +96,10 @@ export class SimpleTestCase<TExpectedOutput> {
         const total = (score / runs.length) / runs[0].length;
 
         console.log("======= Summary =======");
-        if (total >= this.validationRequirement) {
-            console.log(`Test case: "${this.identifier}" *passed* with an average score of ${total} / 100`);
+        if (total >= this.config.validationRequirement) {
+            console.log(`Test case: "${this.config.identifier}" *passed* with an average score of ${total} / 100`);
         } else {
-            console.error(`Test case: "${this.identifier}" *failed* with a total score of ${total} / 100`);
+            console.error(`Test case: "${this.config.identifier}" *failed* with a total score of ${total} / 100`);
         }
     }
 }
